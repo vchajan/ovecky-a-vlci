@@ -1,10 +1,4 @@
-"""Detekce kolizí mezi entitami.
-
-# TODO Lane C
-Vrací seznam CollisionEvent. Vlci s ``is_active == False`` (právě probíhá
-respawn) se v detekci přeskakují — nemohou útočit na ovce ani být odraženi
-dalším kontaktem s psem.
-"""
+"""Collision detection between gameplay entities."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,7 +12,7 @@ from game.entities.wolf import Wolf
 
 @dataclass
 class CollisionEvent:
-    kind: str  # "wolf_eats_sheep" nebo "dog_repels_wolf"
+    kind: str
     sheep: Sheep | None = None
     wolf: Wolf | None = None
 
@@ -26,9 +20,35 @@ class CollisionEvent:
 def detect_collisions(player: Player,
                       sheep_group: pygame.sprite.Group,
                       wolf_group: pygame.sprite.Group) -> list[CollisionEvent]:
-    """Detekuje kolize přes ``rect.colliderect``.
+    """Return collision events detected through sprite rect overlap."""
+    events: list[CollisionEvent] = []
+    eaten_sheep: set[Sheep] = set()
+    wolves_with_sheep_event: set[Wolf] = set()
+    wolves_with_dog_event: set[Wolf] = set()
 
-    Vlci s ``is_active == False`` se přeskakují (neútočí, nelze odrazit).
-    """
-    # TODO Lane C
-    return []
+    for wolf in wolf_group:
+        if not getattr(wolf, "is_active", False):
+            continue
+
+        if (
+            wolf not in wolves_with_dog_event
+            and player.rect.colliderect(wolf.rect)
+        ):
+            events.append(CollisionEvent("dog_repels_wolf", wolf=wolf))
+            wolves_with_dog_event.add(wolf)
+
+        if wolf in wolves_with_sheep_event:
+            continue
+
+        for sheep in sheep_group:
+            if sheep in eaten_sheep or not getattr(sheep, "alive", False):
+                continue
+            if not wolf.rect.colliderect(sheep.rect):
+                continue
+
+            events.append(CollisionEvent("wolf_eats_sheep", sheep=sheep, wolf=wolf))
+            eaten_sheep.add(sheep)
+            wolves_with_sheep_event.add(wolf)
+            break
+
+    return events

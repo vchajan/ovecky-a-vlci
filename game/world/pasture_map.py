@@ -1,14 +1,29 @@
-"""Data layoutu pastviny.
+"""Static pasture layout used by TileMap."""
+from __future__ import annotations
 
-# TODO Lane B
-Pastvina jako 2D matice, např. 20x12 dlaždic. Hodnoty:
-- 0 = tráva (průchozí)
-- 1 = plot (neprůchozí)
+import numpy as np
 
-Lane B doplní finální layout (a případně další typy dlaždic).
-"""
+GRASS = 0
+FENCE = 1
+GATE = 2
 
-# Placeholder layout 20x12 (jen tráva). Lane B doplní plot a další prvky.
-PASTURE_LAYOUT: list[list[int]] = [
-    [0] * 20 for _ in range(12)
-]
+MAP_DATA = np.array(
+    [
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+        [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    ],
+    dtype=np.int8,
+)
+
+# Backwards-compatible name from the Phase 0 skeleton.
+PASTURE_LAYOUT = MAP_DATA
