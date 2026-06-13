@@ -1,6 +1,5 @@
 """Pravidla hry — game over check a aplikace kolizních eventů.
 
-# TODO Lane D
 """
 from __future__ import annotations
 
@@ -13,7 +12,6 @@ from game.systems.collision import CollisionEvent
 
 def check_game_over(session: GameSession) -> bool:
     """True, když padla poslední ovce."""
-    # TODO Lane D
     return session.sheep_alive == 0
 
 
@@ -28,5 +26,12 @@ def apply_collision_events(events: list[CollisionEvent],
 
     Skóre se zde NEZAPOČÍTÁVÁ — to dělá ScoreSystem nad stejnou listou eventů.
     """
-    # TODO Lane D
-    pass
+    for event in events:
+        if event.kind == "wolf_eats_sheep":
+            event.sheep.kill_sheep()
+            session.sheep_alive -= 1
+        elif event.kind == "dog_repels_wolf":
+            event.wolf.trigger_respawn(
+                settings.WOLF_RESPAWN_DELAY,
+                session.tilemap.edge_spawn_position(rng),
+            )
