@@ -1,6 +1,7 @@
 """Small standalone preview for Player and Sheep."""
 from __future__ import annotations
 
+import os
 import random
 import sys
 from pathlib import Path
@@ -60,6 +61,8 @@ def main() -> None:
     pygame.display.set_caption("Sheep Defender - entity preview")
     clock = pygame.time.Clock()
     rng = random.Random()
+    max_frames = _preview_frame_limit()
+    frame_count = 0
 
     assets = AssetManager()
     tilemap = PreviewTileMap()
@@ -87,8 +90,26 @@ def main() -> None:
         sheep_group.draw(screen)
         screen.blit(player.image, player.rect)
         pygame.display.flip()
+        frame_count += 1
+        if max_frames is not None and frame_count >= max_frames:
+            running = False
 
     pygame.quit()
+
+
+def _preview_frame_limit() -> int | None:
+    value = os.environ.get("SHEEP_DEFENDER_PREVIEW_FRAMES")
+    if value is None:
+        return None
+
+    try:
+        frame_limit = int(value)
+    except ValueError:
+        return None
+
+    if frame_limit <= 0:
+        return None
+    return frame_limit
 
 
 if __name__ == "__main__":

@@ -1,10 +1,4 @@
-"""ScoreSystem — počítání bodů.
-
-Pravidla:
-- ``dog_repels_wolf`` -> +SCORE_PER_WOLF_REPELLED a inkrement ``session.wolves_repelled``
-- ``wolf_eats_sheep`` -> žádný score impact (sheep_alive sníží Rules)
-- ``tick(dt)`` -> přičítá SCORE_PER_SECOND bodů za sekundu přežití (lineárně dt)
-"""
+"""Score handling for survival time and wolf repels."""
 from __future__ import annotations
 
 from game import settings
@@ -18,16 +12,23 @@ class ScoreSystem:
 
     def process_events(self, events: list[CollisionEvent],
                        session: GameSession) -> None:
-        """Aplikuje skóre podle eventů."""
-        wolves_repelled = 0
-        for event in events:
-            wolves_repelled += event.kind == "dog_repels_wolf"
+        """Apply score changes for valid collision events."""
+        repelled_wolves = {
+            event.wolf
+            for event in events
+            if (
+                event.kind == "dog_repels_wolf"
+                and event.wolf is not None
+                and event.wolf.is_active
+            )
+        }
 
-        session.score += wolves_repelled * settings.SCORE_PER_WOLF_REPELLED
-        session.wolves_repelled += wolves_repelled
+        count = len(repelled_wolves)
+        session.score += count * settings.SCORE_PER_WOLF_REPELLED
+        session.wolves_repelled += count
 
     def tick(self, dt: float, session: GameSession) -> None:
-        """Lineárně přičítá SCORE_PER_SECOND bodů za sekundu přežití."""
+        """Add SCORE_PER_SECOND for each full survived second."""
         self._second_accumulator += dt
         elapsed_seconds = int(self._second_accumulator)
         if elapsed_seconds:
