@@ -14,7 +14,7 @@ WINDOW_SIZE = (WINDOW_WIDTH, WINDOW_HEIGHT)
 WINDOW_TITLE = "Sheep Defender"
 FPS = 60
 MAX_DELTA_TIME = 0.1  # clamping abnormálně velkých dt
-SPLASH_DURATION = 2.5
+SPLASH_DURATION = 10
 
 # ============================================================================
 # Mapa
