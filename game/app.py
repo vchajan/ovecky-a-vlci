@@ -45,6 +45,7 @@ class PlayingState:
         self.show_herd_debug = False
         self._sheep_bleat_timer = self._next_sheep_bleat_time()
         self._sheep_panic_cooldown = 0.0
+        self._pending_wolf_howl_delay: float | None = None
 
     @property
     def final_score(self) -> int:
@@ -83,10 +84,13 @@ class PlayingState:
 
         self.session.elapsed_time += dt
         self.score_system.tick(dt, self.session)
+        self._update_delayed_wave_audio(dt)
         previous_wave = self.session.wave
         self.difficulty_manager.update(dt, self.session)
         if self.session.wave != previous_wave:
-            self.audio.play("audio/wolf_howl")
+            self.audio.play("audio/wave_start")
+            if self.session.wave_action == "new_wolf":
+                self._pending_wolf_howl_delay = settings.WOLF_HOWL_DELAY
         self._update_loss_marks(dt)
         self._update_proximity_audio(dt)
         self._update_bleat_audio(dt)
@@ -132,7 +136,7 @@ class PlayingState:
         played_sheep_loss = False
         for event in events:
             if event.kind == "dog_repels_wolf" and not played_repel:
-                self.audio.play("audio/bark")
+                self.audio.play("audio/dog_bark")
                 self.audio.play("audio/wolf_flee")
                 played_repel = True
             elif event.kind == "wolf_eats_sheep" and not played_sheep_loss:
@@ -199,6 +203,15 @@ class PlayingState:
                 self.audio.play("audio/sheep_panic")
                 self._sheep_panic_cooldown = settings.SHEEP_PANIC_SOUND_COOLDOWN
                 panic_played = True
+
+    def _update_delayed_wave_audio(self, dt: float) -> None:
+        if self._pending_wolf_howl_delay is None:
+            return
+
+        self._pending_wolf_howl_delay -= dt
+        if self._pending_wolf_howl_delay <= 0.0:
+            self.audio.play("audio/wolf_howl")
+            self._pending_wolf_howl_delay = None
 
     def _next_sheep_bleat_time(self) -> float:
         return self.rng.uniform(*settings.SHEEP_BLEAT_INTERVAL_RANGE)

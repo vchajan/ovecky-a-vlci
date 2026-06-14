@@ -45,11 +45,11 @@ Vsechny obtiznosti zacinaji stejne:
 
 Obtiznost ovlivnuje az speed-up vlny:
 
-- Easy: +0.05 za speed-up, maximum 1.8
-- Medium: +0.08 za speed-up, maximum 2.3
-- Hard: +0.12 za speed-up, maximum 2.8
+- Easy: +0.15 za speed-up, maximum 2.2
+- Medium: +0.22 za speed-up, maximum 3.0
+- Hard: +0.32 za speed-up, maximum 4.0
 
-Vlna se posouva kazdych 15 sekund. Kazda nova vlna udela prave jednu akci:
+Vlna se posouva kazdych 12 sekund. Kazda nova vlna udela prave jednu akci:
 bud zvysi rychlost vlku, nebo prida jednoho vlka az do maxima 8. Cyklus se
 postupne prodluzuje:
 
@@ -98,15 +98,27 @@ primeho fyzickeho tlaceni.
 
 Hra zacina s 8 ovcemi. Bezpecne minimum jsou 3 zive ovce, Game Over nastane az
 pri poklesu pod tuto hranici. Po ztracene ovci zustane stylizovana cervena stopa,
-ktera postupne vybledne.
+ktera zustava po celou aktualni session a zmizi az pri restartu nebo nove hre.
 
-Zvuky ovci a vlku jsou generovane lokalnim nastrojem:
+Audio system pouziva tyto produkcni klice a soubory:
 
-```bash
-python tools/generate_sounds.py
+```text
+assets/audio/wave_start.wav
+assets/audio/wolf_howl.wav
+assets/audio/wolf_growl.wav
+assets/audio/wolf_flee.wav
+assets/audio/sheep_bleat.wav
+assets/audio/sheep_panic.wav
+assets/audio/sheep_loss.wav
+assets/audio/dog_bark.wav
+assets/audio/game_over.wav
 ```
 
-Build EXE spousti generator spritesheetu i generator zvuku automaticky.
+Pokud soubor chybi nebo je mixer nedostupny, hra pouzije SilentSound a bezi dal.
+Stare synteticke WAV placeholdery nejsou produkcni audio a AssetManager je podle
+znamych hashu ignoruje. Build EXE generuje spritesheety automaticky, audio
+negeneruje; skutecne WAV soubory vlozene do `assets/audio/` se pribali pres
+`SheepDefender.spec`.
 
 ## Struktura projektu
 

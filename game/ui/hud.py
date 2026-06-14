@@ -91,12 +91,27 @@ class HUD:
             settings.COLOR_ACCENT,
         )
         subtitle = self._info_font.render(action, True, settings.COLOR_TEXT)
+        speed_line = None
+        if session.wave_action == "speed_up":
+            speed_line = self._info_font.render(
+                (
+                    f"Speed {session.wave_speed_before:.2f}x "
+                    f"-> {session.wave_speed_after:.2f}x"
+                ),
+                True,
+                settings.COLOR_TEXT_DIM,
+            )
         center_x = surface.get_width() // 2
         center_y = int(surface.get_height() * 0.22)
         title_rect = title.get_rect(center=(center_x, center_y))
         subtitle_rect = subtitle.get_rect(center=(center_x, title_rect.bottom + 18))
         surface.blit(title, title_rect)
         surface.blit(subtitle, subtitle_rect)
+        if speed_line is not None:
+            speed_rect = speed_line.get_rect(
+                center=(center_x, subtitle_rect.bottom + 16),
+            )
+            surface.blit(speed_line, speed_rect)
 
     def _render_sheep_warning(self, surface: pygame.Surface) -> None:
         warning = self._info_font.render(

@@ -42,10 +42,6 @@ echo Generating spritesheets...
 python tools\generate_spritesheets.py
 if errorlevel 1 goto :error
 
-echo Generating sounds...
-python tools\generate_sounds.py
-if errorlevel 1 goto :error
-
 echo Cleaning previous build output...
 if exist "build" rmdir /s /q "build"
 if exist "dist" rmdir /s /q "dist"

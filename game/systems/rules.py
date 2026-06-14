@@ -38,7 +38,9 @@ def _add_sheep_loss_mark(
 ) -> None:
     if session.sheep_loss_marks is None:
         session.sheep_loss_marks = []
-    session.sheep_loss_marks.append(SheepLossMark(position))
+    variant = session.sheep_loss_mark_counter
+    session.sheep_loss_mark_counter += 1
+    session.sheep_loss_marks.append(SheepLossMark(position, variant))
     overflow = len(session.sheep_loss_marks) - settings.MAX_BLOOD_STAINS
     if overflow > 0:
         del session.sheep_loss_marks[:overflow]

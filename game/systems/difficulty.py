@@ -55,20 +55,24 @@ class DifficultyManager:
             action = self._apply_spawn_wave(session)
 
         session.wave_action = action
-        session.wave_notice_remaining = 1.0
+        session.wave_notice_remaining = settings.WAVE_MESSAGE_DURATION
         return action
 
     def _apply_speed_up(self, session: GameSession) -> str:
         increase = get_speed_increase(session.difficulty)
         maximum = get_speed_maximum(session.difficulty)
+        session.wave_speed_before = session.wolf_speed_multiplier
         session.wolf_speed_multiplier = min(
             session.wolf_speed_multiplier + increase,
             maximum,
         )
+        session.wave_speed_after = session.wolf_speed_multiplier
         session.speedups_completed += 1
         return "speed_up"
 
     def _apply_spawn_wave(self, session: GameSession) -> str:
+        session.wave_speed_before = session.wolf_speed_multiplier
+        session.wave_speed_after = session.wolf_speed_multiplier
         if len(session.wolf_group) < settings.WOLF_MAX_COUNT:
             self._spawn_wolf(session)
 

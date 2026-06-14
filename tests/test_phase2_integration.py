@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import os
 import random
+import tempfile
 import unittest
-import wave
 from pathlib import Path
 
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
@@ -379,6 +379,7 @@ class Phase2IntegrationTests(unittest.TestCase):
 
         self.assertEqual(len(game.state.session.sheep_group), settings.INITIAL_SHEEP_COUNT)
         self.assertEqual(game.state.session.sheep_alive, settings.INITIAL_SHEEP_COUNT)
+        self.assertEqual(game.state.session.sheep_loss_marks, [])
         game.running = False
 
     def test_asset_manager_fallbacks_and_animations(self) -> None:
@@ -443,13 +444,14 @@ class Phase2IntegrationTests(unittest.TestCase):
         self.assertEqual(len(session.sheep_loss_marks or []), 1)
         self.assertEqual((session.sheep_loss_marks or [])[0].position, (100.0, 100.0))
 
-    def test_sheep_loss_mark_expires_after_duration(self) -> None:
+    def test_sheep_loss_mark_persists_for_current_session(self) -> None:
         state = PlayingState(self.assets)
         state.session.sheep_loss_marks = [SheepLossMark((120.0, 140.0))]
 
-        state._update_loss_marks(settings.BLOOD_STAIN_DURATION + 0.1)
+        state._update_loss_marks(999.0)
 
-        self.assertEqual(state.session.sheep_loss_marks, [])
+        self.assertEqual(len(state.session.sheep_loss_marks), 1)
+        self.assertEqual(state.session.sheep_loss_marks[0].position, (120.0, 140.0))
 
     def test_sheep_loss_mark_count_is_capped(self) -> None:
         sheep = [
@@ -490,6 +492,29 @@ class Phase2IntegrationTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0].kind, "wolf_eats_sheep")
 
+    def test_sheep_loss_mark_renders_between_map_and_entities(self) -> None:
+        state = PlayingState(self.assets)
+        marker_position = (640.0, 360.0)
+        state.session.sheep_loss_marks = [SheepLossMark(marker_position)]
+        state.session.sheep_group.empty()
+        state.session.wolf_group.empty()
+
+        surface = pygame.Surface(settings.WINDOW_SIZE)
+        state.render(surface)
+        map_and_mark_pixel = surface.get_at((640, 360))[:3]
+
+        sheep_sprite = pygame.sprite.Sprite()
+        sheep_sprite.image = pygame.Surface((20, 20))
+        sheep_sprite.image.fill((20, 40, 220))
+        sheep_sprite.rect = sheep_sprite.image.get_rect(center=(640, 360))
+        state.session.sheep_group = pygame.sprite.Group(sheep_sprite)
+
+        state.render(surface)
+        entity_pixel = surface.get_at((640, 360))[:3]
+
+        self.assertNotEqual(map_and_mark_pixel, settings.COLOR_GRASS)
+        self.assertEqual(entity_pixel, (20, 40, 220))
+
     def test_difficulties_share_initial_speed_wolves_and_wave(self) -> None:
         effective_speeds: list[float] = []
         for difficulty in settings.DIFFICULTIES:
@@ -510,7 +535,7 @@ class Phase2IntegrationTests(unittest.TestCase):
             [settings.WOLF_BASE_SPEED] * len(settings.DIFFICULTIES),
         )
 
-    def test_first_speedup_differs_by_difficulty(self) -> None:
+    def test_first_speedup_uses_configured_difficulty_values(self) -> None:
         multipliers: dict[str, float] = {}
         for difficulty in settings.DIFFICULTIES:
             session = create_session(
@@ -522,8 +547,18 @@ class Phase2IntegrationTests(unittest.TestCase):
             DifficultyManager().advance_wave(session)
             multipliers[difficulty] = session.wolf_speed_multiplier
 
-        self.assertLess(multipliers["easy"], multipliers["medium"])
-        self.assertLess(multipliers["medium"], multipliers["hard"])
+        self.assertAlmostEqual(
+            multipliers["easy"],
+            1.0 + settings.WOLF_SPEED_INCREASE_EASY,
+        )
+        self.assertAlmostEqual(
+            multipliers["medium"],
+            1.0 + settings.WOLF_SPEED_INCREASE_MEDIUM,
+        )
+        self.assertAlmostEqual(
+            multipliers["hard"],
+            1.0 + settings.WOLF_SPEED_INCREASE_HARD,
+        )
 
     def test_wave_sequence_alternates_speedups_and_spawns(self) -> None:
         session = create_session(
@@ -540,6 +575,7 @@ class Phase2IntegrationTests(unittest.TestCase):
 
         for _ in range(9):
             before_multiplier = session.wolf_speed_multiplier
+            before_count = len(session.wolf_group)
             action = manager.advance_wave(session)
             actions.append(action)
             records.append(
@@ -551,6 +587,8 @@ class Phase2IntegrationTests(unittest.TestCase):
             )
             if action == "new_wolf":
                 self.assertAlmostEqual(session.wolf_speed_multiplier, before_multiplier)
+            if action == "speed_up":
+                self.assertEqual(len(session.wolf_group), before_count)
 
         self.assertEqual([record[0] for record in records], list(range(1, 11)))
         self.assertEqual(
@@ -707,38 +745,112 @@ class Phase2IntegrationTests(unittest.TestCase):
 
         self.assertIs(first, second)
 
-    def test_generate_sounds_creates_loadable_wav_files(self) -> None:
-        generate_sounds.main()
-        filenames = (
-            "bark.wav",
-            "sheep_bleat.wav",
-            "sheep_panic.wav",
-            "sheep_loss.wav",
-            "wolf_growl.wav",
-            "wolf_howl.wav",
-            "wolf_flee.wav",
-        )
-        for filename in filenames:
-            path = ROOT_DIR / "assets" / "audio" / filename
-            self.assertTrue(path.is_file(), filename)
-            self.assertGreater(path.stat().st_size, 44)
-            with wave.open(str(path), "rb") as wav:
-                self.assertEqual(wav.getnchannels(), 1)
-                self.assertEqual(wav.getsampwidth(), 2)
-                self.assertGreater(wav.getnframes(), 0)
+    def test_required_audio_keys_are_registered(self) -> None:
+        expected = {
+            "audio/wave_start",
+            "audio/wolf_howl",
+            "audio/wolf_growl",
+            "audio/wolf_flee",
+            "audio/sheep_bleat",
+            "audio/sheep_panic",
+            "audio/sheep_loss",
+            "audio/dog_bark",
+            "audio/game_over",
+        }
 
-    def test_pygame_can_load_generated_sounds_when_mixer_works(self) -> None:
-        try:
-            if not pygame.mixer.get_init():
+        self.assertTrue(expected.issubset(assets_module.SOUND_FILES))
+
+    def test_generate_sounds_does_not_overwrite_existing_wav_files(self) -> None:
+        original_audio_dir = generate_sounds.AUDIO_DIR
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            existing = temp_path / "bark.wav"
+            existing.write_bytes(b"real sound placeholder")
+            generate_sounds.AUDIO_DIR = temp_path
+            try:
+                generate_sounds.main()
+            finally:
+                generate_sounds.AUDIO_DIR = original_audio_dir
+
+            self.assertEqual(existing.read_bytes(), b"real sound placeholder")
+
+        def test_asset_manager_loads_real_sound_files(self):
+        """Real MP3 effects must be loaded instead of SilentSound."""
+        if not pygame.mixer.get_init():
+            try:
                 pygame.mixer.init()
-        except pygame.error:
-            self.skipTest("pygame mixer is unavailable")
+            except pygame.error as error:
+                self.skipTest(f"Audio mixer is unavailable: {error}")
 
-        sound = pygame.mixer.Sound(
-            str(ROOT_DIR / "assets" / "audio" / "sheep_bleat.wav"),
+        assets = AssetManager()
+
+        required_audio = [
+            "audio/wave_start",
+            "audio/wolf_howl",
+            "audio/wolf_growl",
+            "audio/wolf_flee",
+            "audio/sheep_bleat",
+            "audio/sheep_panic",
+            "audio/sheep_loss",
+            "audio/dog_bark",
+            "audio/game_over",
+        ]
+
+        for key in required_audio:
+            sound = assets.sound(key)
+
+            self.assertNotIsInstance(
+                sound,
+                SilentSound,
+                msg=f"{key} unexpectedly returned SilentSound",
+            )
+
+            duration = sound.get_length()
+
+            self.assertGreater(
+                duration,
+                0.1,
+                msg=f"{key} is empty or too short",
+            )
+            self.assertLessEqual(
+                duration,
+                3.05,
+                msg=f"{key} is longer than 3 seconds: {duration:.2f}s",
+            )
+            
+    required_audio = [
+        "audio/wave_start",
+        "audio/wolf_howl",
+        "audio/wolf_growl",
+        "audio/wolf_flee",
+        "audio/sheep_bleat",
+        "audio/sheep_panic",
+        "audio/sheep_loss",
+        "audio/dog_bark",
+        "audio/game_over",
+    ]
+
+    for key in required_audio:
+        sound = assets.sound(key)
+
+        self.assertNotIsInstance(
+            sound,
+            SilentSound,
+            msg=f"{key} unexpectedly returned SilentSound",
         )
 
-        self.assertGreater(sound.get_length(), 0.0)
+        duration = sound.get_length()
+
+        self.assertGreater(
+            duration,
+            0.1,
+            msg=f"{key} is empty or too short",
+        )
+        self.assertLessEqual(
+            duration,
+            3.05,
+            msg=f"{key} is longer than 3 seconds: {duration:.2f}s",
+        )
 
     def test_asset_manager_uses_silent_sound_without_mixer(self) -> None:
         was_initialized = pygame.mixer.get_init() is not None
@@ -755,6 +867,14 @@ class Phase2IntegrationTests(unittest.TestCase):
 
         self.assertIsInstance(sound, SilentSound)
 
+    def test_silent_sound_accepts_volume_api(self) -> None:
+        sound = SilentSound()
+
+        sound.set_volume(0.25)
+        sound.play()
+
+        self.assertIsNone(sound.play())
+
     def test_collision_audio_plays_once_per_event_kind(self) -> None:
         state = PlayingState(self.assets)
         state.audio = SpyAudio()
@@ -770,11 +890,11 @@ class Phase2IntegrationTests(unittest.TestCase):
             ],
         )
 
-        self.assertEqual(state.audio.played.count("audio/bark"), 1)
+        self.assertEqual(state.audio.played.count("audio/dog_bark"), 1)
         self.assertEqual(state.audio.played.count("audio/wolf_flee"), 1)
         self.assertEqual(state.audio.played.count("audio/sheep_loss"), 1)
 
-    def test_wave_howl_plays_once_when_wave_advances(self) -> None:
+    def test_wave_start_plays_once_when_wave_advances(self) -> None:
         state = PlayingState(self.assets)
         state.audio = SpyAudio()
         state._sheep_bleat_timer = 999.0
@@ -782,6 +902,24 @@ class Phase2IntegrationTests(unittest.TestCase):
         state.session.wolf_group.empty()
 
         state.update(settings.WAVE_INTERVAL)
+
+        self.assertEqual(state.audio.played.count("audio/wave_start"), 1)
+        self.assertEqual(state.audio.played.count("audio/wolf_howl"), 0)
+
+    def test_spawn_wave_plays_delayed_howl_once(self) -> None:
+        state = PlayingState(self.assets)
+        state.audio = SpyAudio()
+        state._sheep_bleat_timer = 999.0
+        state._sheep_panic_cooldown = 999.0
+        state.session.wolf_group.empty()
+
+        state.update(settings.WAVE_INTERVAL)
+        state.update(settings.WAVE_INTERVAL)
+        state.update(settings.WOLF_HOWL_DELAY - 0.01)
+        self.assertEqual(state.audio.played.count("audio/wolf_howl"), 0)
+
+        state.update(0.02)
+        state.update(0.02)
 
         self.assertEqual(state.audio.played.count("audio/wolf_howl"), 1)
 

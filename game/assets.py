@@ -1,6 +1,7 @@
 """Asset loading and safe fallbacks for images, animations, fonts and sounds."""
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 import sys
 
@@ -34,15 +35,26 @@ IMAGE_FILES: dict[str, Path] = {
 }
 
 SOUND_FILES: dict[str, Path] = {
-    "audio/bark": ASSET_ROOT / "audio" / "bark.wav",
-    "audio/sheep_bleat": ASSET_ROOT / "audio" / "sheep_bleat.wav",
-    "audio/sheep_panic": ASSET_ROOT / "audio" / "sheep_panic.wav",
-    "audio/sheep_loss": ASSET_ROOT / "audio" / "sheep_loss.wav",
-    "audio/wolf_growl": ASSET_ROOT / "audio" / "wolf_growl.wav",
-    "audio/wolf_howl": ASSET_ROOT / "audio" / "wolf_howl.wav",
-    "audio/wolf_flee": ASSET_ROOT / "audio" / "wolf_flee.wav",
-    "audio/wolf_stun": ASSET_ROOT / "audio" / "wolf_stun.wav",
-    "audio/game_over": ASSET_ROOT / "audio" / "game_over.wav",
+    "audio/wave_start": ASSET_ROOT / "audio" / "wave_start.mp3",
+    "audio/wolf_howl": ASSET_ROOT / "audio" / "wolf_howl.mp3",
+    "audio/wolf_growl": ASSET_ROOT / "audio" / "wolf_growl.mp3",
+    "audio/wolf_flee": ASSET_ROOT / "audio" / "wolf_flee.mp3",
+    "audio/sheep_bleat": ASSET_ROOT / "audio" / "sheep_bleat.mp3",
+    "audio/sheep_panic": ASSET_ROOT / "audio" / "sheep_panic.mp3",
+    "audio/sheep_loss": ASSET_ROOT / "audio" / "sheep_loss.mp3",
+    "audio/dog_bark": ASSET_ROOT / "audio" / "dog_bark.mp3",
+    "audio/game_over": ASSET_ROOT / "audio" / "game_over.mp3",
+
+}
+
+KNOWN_SYNTHETIC_SOUND_SHA1 = {
+    "0fd56e3ea9c1bc8a0f124dff2e6e3254111f883",
+    "54b246d1c3db93063d24d47dcc2a7c6fff66179e",
+    "693d8e2f43b05d34ab258b90b36f343c0c76959d",
+    "7316c09e488d0dd053fd38b9c47bef20a6cc4446",
+    "bee0241190414188e71a67d09cf48197f2087331",
+    "c113172a217db975f713545e1d96f86c8d9a9114",
+    "f96f8ae041f13e9580868aec8cd429a3795d62d2",
 }
 
 IMAGE_SIZES: dict[str, tuple[int, int]] = {
@@ -93,6 +105,10 @@ class SilentSound:
 
     def play(self) -> None:
         """Do nothing and keep the game running."""
+        return None
+
+    def set_volume(self, volume: float) -> None:
+        """Accept pygame Sound's volume API without doing anything."""
         return None
 
 
@@ -153,13 +169,26 @@ class AssetManager:
 
     def _load_sound(self, key: str) -> pygame.mixer.Sound | SilentSound:
         path = SOUND_FILES.get(key)
-        if path is None or not path.is_file() or not pygame.mixer.get_init():
+        if (
+            path is None
+            or not path.is_file()
+            or self._is_known_synthetic_sound(path)
+            or not pygame.mixer.get_init()
+        ):
             return self._silent_sound
 
         try:
             return pygame.mixer.Sound(str(path))
         except (OSError, pygame.error):
             return self._silent_sound
+
+    @staticmethod
+    def _is_known_synthetic_sound(path: Path) -> bool:
+        try:
+            digest = hashlib.sha1(path.read_bytes()).hexdigest()
+        except OSError:
+            return False
+        return digest in KNOWN_SYNTHETIC_SOUND_SHA1
 
     def _load_animation(self, key: str) -> Animation:
         spec = SPRITESHEET_ANIMATIONS.get(key)

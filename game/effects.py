@@ -1,6 +1,8 @@
 """Lightweight visual effects for gameplay."""
 from __future__ import annotations
 
+import random
+
 import pygame
 
 from game import settings
@@ -9,49 +11,67 @@ from game import settings
 class SheepLossMark:
     """A stylized red mark left where a sheep was lost."""
 
-    def __init__(self, position: tuple[float, float]) -> None:
+    def __init__(self, position: tuple[float, float], variant: int = 0) -> None:
         self.position = (float(position[0]), float(position[1]))
-        self.age = 0.0
-        self.image = self._create_image()
+        self.variant = int(variant)
+        self.image = self._create_image(self.variant)
+        self.rect = self.image.get_rect(
+            center=(round(self.position[0]), round(self.position[1])),
+        )
 
     @property
     def expired(self) -> bool:
-        return self.age >= settings.BLOOD_STAIN_DURATION
+        return False
 
     def update(self, dt: float) -> None:
-        self.age = min(settings.BLOOD_STAIN_DURATION, self.age + dt)
+        return None
 
     def render(self, surface: pygame.Surface) -> None:
-        alpha = self._alpha()
-        if alpha <= 0:
-            return
-
-        image = self.image.copy()
-        image.set_alpha(alpha)
-        rect = image.get_rect(
-            center=(round(self.position[0]), round(self.position[1])),
-        )
-        surface.blit(image, rect)
-
-    def _alpha(self) -> int:
-        fade_start = settings.BLOOD_STAIN_DURATION * 0.7
-        if self.age <= fade_start:
-            return 170
-
-        fade_span = max(0.01, settings.BLOOD_STAIN_DURATION - fade_start)
-        progress = min(1.0, (self.age - fade_start) / fade_span)
-        return round(170 * (1.0 - progress))
+        surface.blit(self.image, self.rect)
 
     @staticmethod
-    def _create_image() -> pygame.Surface:
-        surface = pygame.Surface((42, 32), pygame.SRCALPHA)
-        dark = (105, 12, 18, 165)
-        mid = (150, 22, 28, 150)
-        light = (190, 45, 42, 120)
-        pygame.draw.ellipse(surface, dark, pygame.Rect(7, 10, 25, 13))
-        pygame.draw.ellipse(surface, mid, pygame.Rect(14, 6, 16, 11))
-        pygame.draw.circle(surface, light, (31, 18), 4)
-        pygame.draw.circle(surface, dark, (10, 23), 3)
-        pygame.draw.rect(surface, mid, pygame.Rect(22, 20, 4, 3))
-        pygame.draw.rect(surface, dark, pygame.Rect(34, 14, 3, 3))
+    def _create_image(variant: int) -> pygame.Surface:
+        width, height = settings.BLOOD_STAIN_SIZE
+        surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        rng = random.Random(variant)
+        dark = (*settings.BLOOD_DARK, 235)
+        mid = (*settings.BLOOD_MAIN, 220)
+        light = (*settings.BLOOD_LIGHT, 170)
+
+        center = (width // 2, height // 2)
+        pygame.draw.ellipse(
+            surface,
+            mid,
+            pygame.Rect(5, 8, width - 12, height - 16),
+        )
+        pygame.draw.ellipse(
+            surface,
+            dark,
+            pygame.Rect(11, 12, width - 24, height - 22),
+        )
+
+        for _ in range(7):
+            radius_x = rng.randint(4, 10)
+            radius_y = rng.randint(3, 7)
+            x = rng.randint(4, width - radius_x - 4)
+            y = rng.randint(4, height - radius_y - 4)
+            color = mid if rng.random() < 0.7 else dark
+            pygame.draw.ellipse(
+                surface,
+                color,
+                pygame.Rect(x, y, radius_x * 2, radius_y * 2),
+            )
+
+        for _ in range(6):
+            offset_x = rng.randint(-width // 2 + 4, width // 2 - 4)
+            offset_y = rng.randint(-height // 2 + 3, height // 2 - 3)
+            radius = rng.randint(2, 5)
+            color = light if rng.random() < 0.35 else dark
+            pygame.draw.circle(
+                surface,
+                color,
+                (center[0] + offset_x, center[1] + offset_y),
+                radius,
+            )
+
         return surface

@@ -35,9 +35,12 @@ class GameSession:
     speedups_required: int = settings.INITIAL_SPEEDUPS_BEFORE_SPAWN
     speedups_completed: int = 0
     wave_action: str | None = None
+    wave_speed_before: float = 1.0
+    wave_speed_after: float = 1.0
     wave_notice_remaining: float = 0.0
     sheep_warning_remaining: float = 0.0
     sheep_loss_marks: list["SheepLossMark"] | None = None
+    sheep_loss_mark_counter: int = 0
     wolves_repelled: int = 0
     sheep_alive: int = 0
     game_over: bool = False

@@ -1,4 +1,8 @@
-"""Generate deterministic WAV sound effects for Sheep Defender."""
+"""Generate legacy deterministic WAV placeholders for local development.
+
+These generated sounds are not production assets. Real game audio should be
+placed in ``assets/audio`` with the filenames registered by ``game.assets``.
+"""
 from __future__ import annotations
 
 import math
@@ -27,6 +31,9 @@ def main() -> None:
 
 def _write_effect(filename: str, samples: list[float]) -> None:
     path = AUDIO_DIR / filename
+    if path.exists():
+        return
+
     with wave.open(str(path), "wb") as wav:
         wav.setnchannels(1)
         wav.setsampwidth(2)
