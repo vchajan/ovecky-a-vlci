@@ -4,6 +4,24 @@ from __future__ import annotations
 import pygame
 
 
+def slice_spritesheet(
+    sheet: pygame.Surface,
+    frame_width: int,
+    frame_height: int,
+    row: int,
+    frame_count: int,
+) -> list[pygame.Surface]:
+    """Return copied frames from one row of a spritesheet."""
+    frames: list[pygame.Surface] = []
+    y = row * frame_height
+    for index in range(frame_count):
+        rect = pygame.Rect(index * frame_width, y, frame_width, frame_height)
+        frame = pygame.Surface((frame_width, frame_height), pygame.SRCALPHA)
+        frame.blit(sheet, (0, 0), rect)
+        frames.append(frame)
+    return frames
+
+
 class Animation:
     """Stores animation frames and returns the frame for elapsed time."""
 

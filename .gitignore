@@ -28,6 +28,7 @@ Thumbs.db
 .tox/
 build/
 dist/
+*.spec.bak
 *.egg-info/
 
 # Pygame

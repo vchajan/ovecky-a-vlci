@@ -12,10 +12,113 @@ pip install -r requirements.txt
 python main.py
 ```
 
+## Windows EXE
+
+1. Dvakrat kliknete na `build_exe.bat`.
+2. Po dokonceni otevrete slozku `dist`.
+3. Dvakrat kliknete na `SheepDefender.exe`.
+
+Vysledny hrac nepotrebuje nainstalovany Python, terminal ani PyInstaller.
+Build vytvori jeden windowed soubor `dist/SheepDefender.exe`, ktery pri
+neocekavane chybe zapise `sheep_defender_error.log` vedle `.exe`.
+
 ## Ovládání
 
 - WASD nebo šipky: pohyb psa
 - Esc: konec hry / pauza
+- F3: zobrazit/skryt pasteveckou zonu psa pro debug
+
+## Obtiznosti a vlny
+
+Hlavni menu nabizi tri obtiznosti: Easy, Medium a Hard. Vychozi volba je
+Medium. Tlacitko `Hrat` spusti novou hru s aktualne zvolenou obtiznosti,
+`Hrat znovu` zachova obtiznost posledni hry a navrat do menu dovoli vybrat
+jinou obtiznost.
+
+Vsechny obtiznosti zacinaji stejne:
+
+- Wave 1
+- 8 ovci
+- 3 vlci
+- rychlostni multiplikator 1.00
+- efektivni rychlost vlka `WOLF_BASE_SPEED * 1.0`, tedy 60 px/s
+
+Obtiznost ovlivnuje az speed-up vlny:
+
+- Easy: +0.15 za speed-up, maximum 2.2
+- Medium: +0.22 za speed-up, maximum 3.0
+- Hard: +0.32 za speed-up, maximum 4.0
+
+Vlna se posouva kazdych 12 sekund. Kazda nova vlna udela prave jednu akci:
+bud zvysi rychlost vlku, nebo prida jednoho vlka az do maxima 8. Cyklus se
+postupne prodluzuje:
+
+```text
+Wave 1: start, 3 vlci, speed 1.00
+Wave 2: speed-up
+Wave 3: novy vlk
+Wave 4: speed-up 1/2
+Wave 5: speed-up 2/2
+Wave 6: novy vlk
+Wave 7-9: tri speed-upy
+Wave 10: novy vlk
+```
+
+## Animace
+
+Postavy pouzivaji generovane spritesheety v `assets/sprites/`:
+
+- `dog_sheet.png`: 256 x 256 px, 4 radky walk animaci
+- `sheep_sheet.png`: 256 x 256 px, 4 radky walk animaci
+- `wolf_sheet.png`: 256 x 512 px, 4 radky walk animaci a 4 radky flee animaci
+
+Kazdy frame ma 64 x 64 px a kazdy smer ma 4 framy. Radky jsou vzdy:
+down, left, right, up. Vlk ma navic flee radky ve stejnem poradi.
+
+PNG se generuji deterministicky pres Pygame:
+
+```bash
+python tools/generate_spritesheets.py
+```
+
+Po odrazeni psem vlk dve sekundy utika pomoci flee animace, nemuze zrat ovce
+ani znovu pridavat skore, potom zmizi, respawnuje se na validni edge pozici a
+vrati se do stavu chasing.
+
+## Pastevectvi a stado
+
+Pes ma kolem sebe neviditelnou pasteveckou zonu. Kdyz se ovce dostane blizko,
+zacne plynule utikat smerem od psa, kratce si tento smer pamatuje a jde rychleji
+nez pri beznem nahodnem pohybu. Velmi blizka ovce reaguje silneji.
+
+Ovce maji jednoduchou stadovou tendenci: pri pohybu mirne miri ke stredu
+blizkych ovci, ale zaroven si drzi odstup od prilis blizkych sousedu. Pes tak
+muze stado postupne tlacit, obchazet a odhanet od vlku bez teleportu nebo
+primeho fyzickeho tlaceni.
+
+Hra zacina s 8 ovcemi. Bezpecne minimum jsou 3 zive ovce, Game Over nastane az
+pri poklesu pod tuto hranici. Po ztracene ovci zustane stylizovana cervena stopa,
+ktera zustava po celou aktualni session a zmizi az pri restartu nebo nove hre.
+
+Audio system pouziva tyto produkcni klice a soubory:
+
+```text
+assets/audio/wave_start.wav
+assets/audio/wolf_howl.wav
+assets/audio/wolf_growl.wav
+assets/audio/wolf_flee.wav
+assets/audio/sheep_bleat.wav
+assets/audio/sheep_panic.wav
+assets/audio/sheep_loss.wav
+assets/audio/dog_bark.wav
+assets/audio/game_over.wav
+```
+
+Pokud soubor chybi nebo je mixer nedostupny, hra pouzije SilentSound a bezi dal.
+Stare synteticke WAV placeholdery nejsou produkcni audio a AssetManager je podle
+znamych hashu ignoruje. Build EXE generuje spritesheety automaticky, audio
+negeneruje; skutecne WAV soubory vlozene do `assets/audio/` se pribali pres
+`SheepDefender.spec`.
 
 ## Struktura projektu
 

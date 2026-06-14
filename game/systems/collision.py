@@ -36,6 +36,7 @@ def detect_collisions(player: Player,
         ):
             events.append(CollisionEvent("dog_repels_wolf", wolf=wolf))
             wolves_with_dog_event.add(wolf)
+            continue
 
         if wolf in wolves_with_sheep_event:
             continue

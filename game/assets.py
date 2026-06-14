@@ -1,14 +1,23 @@
 """Asset loading and safe fallbacks for images, animations, fonts and sounds."""
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
+import sys
 
 import pygame
 
 from game import settings
-from game.animation import Animation
+from game.animation import Animation, slice_spritesheet
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+def resource_root() -> Path:
+    """Return the project root or PyInstaller extraction root."""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(getattr(sys, "_MEIPASS"))
+    return Path(__file__).resolve().parents[1]
+
+
+PROJECT_ROOT = resource_root()
 ASSET_ROOT = PROJECT_ROOT / "assets"
 
 IMAGE_FILES: dict[str, Path] = {
@@ -19,14 +28,33 @@ IMAGE_FILES: dict[str, Path] = {
     "sprites/dog": ASSET_ROOT / "sprites" / "dog.png",
     "sprites/sheep": ASSET_ROOT / "sprites" / "sheep.png",
     "sprites/wolf": ASSET_ROOT / "sprites" / "wolf.png",
+    "sprites/dog_sheet": ASSET_ROOT / "sprites" / "dog_sheet.png",
+    "sprites/sheep_sheet": ASSET_ROOT / "sprites" / "sheep_sheet.png",
+    "sprites/wolf_sheet": ASSET_ROOT / "sprites" / "wolf_sheet.png",
     "ui/logo": ASSET_ROOT / "ui" / "logo.png",
 }
 
 SOUND_FILES: dict[str, Path] = {
-    "audio/bark": ASSET_ROOT / "audio" / "bark.wav",
-    "audio/sheep_loss": ASSET_ROOT / "audio" / "sheep_loss.wav",
-    "audio/wolf_stun": ASSET_ROOT / "audio" / "wolf_stun.wav",
-    "audio/game_over": ASSET_ROOT / "audio" / "game_over.wav",
+    "audio/wave_start": ASSET_ROOT / "audio" / "wave_start.mp3",
+    "audio/wolf_howl": ASSET_ROOT / "audio" / "wolf_howl.mp3",
+    "audio/wolf_growl": ASSET_ROOT / "audio" / "wolf_growl.mp3",
+    "audio/wolf_flee": ASSET_ROOT / "audio" / "wolf_flee.mp3",
+    "audio/sheep_bleat": ASSET_ROOT / "audio" / "sheep_bleat.mp3",
+    "audio/sheep_panic": ASSET_ROOT / "audio" / "sheep_panic.mp3",
+    "audio/sheep_loss": ASSET_ROOT / "audio" / "sheep_loss.mp3",
+    "audio/dog_bark": ASSET_ROOT / "audio" / "dog_bark.mp3",
+    "audio/game_over": ASSET_ROOT / "audio" / "game_over.mp3",
+
+}
+
+KNOWN_SYNTHETIC_SOUND_SHA1 = {
+    "0fd56e3ea9c1bc8a0f124dff2e6e3254111f883",
+    "54b246d1c3db93063d24d47dcc2a7c6fff66179e",
+    "693d8e2f43b05d34ab258b90b36f343c0c76959d",
+    "7316c09e488d0dd053fd38b9c47bef20a6cc4446",
+    "bee0241190414188e71a67d09cf48197f2087331",
+    "c113172a217db975f713545e1d96f86c8d9a9114",
+    "f96f8ae041f13e9580868aec8cd429a3795d62d2",
 }
 
 IMAGE_SIZES: dict[str, tuple[int, int]] = {
@@ -37,8 +65,39 @@ IMAGE_SIZES: dict[str, tuple[int, int]] = {
     "sprites/dog": (48, 48),
     "sprites/sheep": (40, 40),
     "sprites/wolf": (48, 48),
+    "sprites/dog_sheet": (
+        settings.SPRITE_FRAME_WIDTH * settings.SPRITE_FRAME_COUNT,
+        settings.SPRITE_FRAME_HEIGHT * len(settings.SPRITE_DIRECTIONS),
+    ),
+    "sprites/sheep_sheet": (
+        settings.SPRITE_FRAME_WIDTH * settings.SPRITE_FRAME_COUNT,
+        settings.SPRITE_FRAME_HEIGHT * len(settings.SPRITE_DIRECTIONS),
+    ),
+    "sprites/wolf_sheet": (
+        settings.SPRITE_FRAME_WIDTH * settings.SPRITE_FRAME_COUNT,
+        settings.SPRITE_FRAME_HEIGHT * (len(settings.SPRITE_DIRECTIONS) * 2),
+    ),
     "ui/logo": (320, 120),
 }
+
+SPRITESHEET_ANIMATIONS: dict[str, tuple[str, int]] = {}
+for _direction, _row in settings.SPRITE_WALK_ROWS.items():
+    SPRITESHEET_ANIMATIONS[f"sprites/dog/walk/{_direction}"] = (
+        "sprites/dog_sheet",
+        _row,
+    )
+    SPRITESHEET_ANIMATIONS[f"sprites/sheep/walk/{_direction}"] = (
+        "sprites/sheep_sheet",
+        _row,
+    )
+    SPRITESHEET_ANIMATIONS[f"sprites/wolf/walk/{_direction}"] = (
+        "sprites/wolf_sheet",
+        _row,
+    )
+    SPRITESHEET_ANIMATIONS[f"sprites/wolf/flee/{_direction}"] = (
+        "sprites/wolf_sheet",
+        _row + settings.SPRITE_WOLF_FLEE_ROW_OFFSET,
+    )
 
 
 class SilentSound:
@@ -46,6 +105,10 @@ class SilentSound:
 
     def play(self) -> None:
         """Do nothing and keep the game running."""
+        return None
+
+    def set_volume(self, volume: float) -> None:
+        """Accept pygame Sound's volume API without doing anything."""
         return None
 
 
@@ -67,9 +130,9 @@ class AssetManager:
         return self._image_cache[key]
 
     def animation(self, key: str) -> Animation:
-        """Return a simple cached animation for key."""
+        """Return a cached animation for key."""
         if key not in self._animation_cache:
-            self._animation_cache[key] = Animation([self.image(key)])
+            self._animation_cache[key] = self._load_animation(key)
         return self._animation_cache[key]
 
     def font(self, size: int) -> pygame.font.Font:
@@ -106,13 +169,49 @@ class AssetManager:
 
     def _load_sound(self, key: str) -> pygame.mixer.Sound | SilentSound:
         path = SOUND_FILES.get(key)
-        if path is None or not path.is_file() or not pygame.mixer.get_init():
+        if (
+            path is None
+            or not path.is_file()
+            or self._is_known_synthetic_sound(path)
+            or not pygame.mixer.get_init()
+        ):
             return self._silent_sound
 
         try:
             return pygame.mixer.Sound(str(path))
         except (OSError, pygame.error):
             return self._silent_sound
+
+    @staticmethod
+    def _is_known_synthetic_sound(path: Path) -> bool:
+        try:
+            digest = hashlib.sha1(path.read_bytes()).hexdigest()
+        except OSError:
+            return False
+        return digest in KNOWN_SYNTHETIC_SOUND_SHA1
+
+    def _load_animation(self, key: str) -> Animation:
+        spec = SPRITESHEET_ANIMATIONS.get(key)
+        if spec is None:
+            return Animation([self.image(key)])
+
+        sheet_key, row = spec
+        path = IMAGE_FILES.get(sheet_key)
+        if path is None or not path.is_file():
+            return Animation(
+                self._placeholder_animation_frames(key),
+                settings.SPRITE_FRAME_DURATION,
+            )
+
+        sheet = self.image(sheet_key)
+        frames = slice_spritesheet(
+            sheet,
+            settings.SPRITE_FRAME_WIDTH,
+            settings.SPRITE_FRAME_HEIGHT,
+            row,
+            settings.SPRITE_FRAME_COUNT,
+        )
+        return Animation(frames, settings.SPRITE_FRAME_DURATION)
 
     def _placeholder_image(self, key: str, size: tuple[int, int]) -> pygame.Surface:
         if key.startswith("tiles/grass"):
@@ -125,8 +224,24 @@ class AssetManager:
             return self._sheep_surface(size)
         if key == "sprites/wolf":
             return self._wolf_surface(size)
+        if key.endswith("_sheet"):
+            return self._missing_surface(size)
         if key == "ui/logo":
             return self._logo_surface(size)
+        return self._missing_surface(size)
+
+    def _placeholder_animation_frames(self, key: str) -> list[pygame.Surface]:
+        frame = self._entity_placeholder_for_animation(key)
+        return [frame.copy() for _ in range(settings.SPRITE_FRAME_COUNT)]
+
+    def _entity_placeholder_for_animation(self, key: str) -> pygame.Surface:
+        size = (settings.SPRITE_FRAME_WIDTH, settings.SPRITE_FRAME_HEIGHT)
+        if key.startswith("sprites/dog/"):
+            return pygame.transform.smoothscale(self._dog_surface((48, 48)), size)
+        if key.startswith("sprites/sheep/"):
+            return pygame.transform.smoothscale(self._sheep_surface((40, 40)), size)
+        if key.startswith("sprites/wolf/"):
+            return pygame.transform.smoothscale(self._wolf_surface((48, 48)), size)
         return self._missing_surface(size)
 
     @staticmethod
