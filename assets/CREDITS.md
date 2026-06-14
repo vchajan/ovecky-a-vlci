@@ -1,27 +1,30 @@
 # Asset Credits
 
-No external image, font, or audio assets are included yet.
+The character spritesheets are created by the project's own deterministic
+Pygame generator:
 
-The game currently uses generated placeholder surfaces from `game/assets.py` for:
+- `tools/generate_spritesheets.py`
+- `assets/sprites/dog_sheet.png`
+- `assets/sprites/sheep_sheet.png`
+- `assets/sprites/wolf_sheet.png`
 
-- tiles: grass, fence, gate rendering
-- sprites: dog, sheep, wolf
-- UI: logo
-- audio: silent fallback sounds
+They do not use external image sources.
 
-Planned asset paths:
+The game still uses generated placeholder surfaces from `game/assets.py` when a
+tile, UI image, legacy sprite path, or sound file is missing. Audio falls back
+to silent sound objects so missing sound files do not crash the game.
+
+Planned optional asset paths:
 
 - `assets/tiles/grass.png`
 - `assets/tiles/fence_h.png`
 - `assets/tiles/fence_v.png`
 - `assets/tiles/fence_corner.png`
-- `assets/sprites/dog.png`
-- `assets/sprites/sheep.png`
-- `assets/sprites/wolf.png`
 - `assets/ui/logo.png`
 - `assets/audio/bark.wav`
 - `assets/audio/sheep_loss.wav`
 - `assets/audio/wolf_stun.wav`
 - `assets/audio/game_over.wav`
 
-When real assets are added, include their author, source URL, and license here.
+When external assets are added, include their author, source URL, and license
+here before committing them.

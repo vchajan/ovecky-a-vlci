@@ -45,12 +45,17 @@ class Sheep(pygame.sprite.Sprite):
         super().__init__()
         self.pos = np.array(pos, dtype=float)
         self.direction = np.array([0.0, 0.0], dtype=float)
+        self.facing_direction = "down"
         self.speed = settings.SHEEP_SPEED
         self.alive = True
         self.state = "idle"
         self.state_timer = _random_timer()
         self.animation_time = 0.0
-        self.animation: Animation | None = assets.animation("sprites/sheep")
+        self.animations: dict[str, Animation] = {
+            direction: assets.animation(f"sprites/sheep/walk/{direction}")
+            for direction in settings.SPRITE_DIRECTIONS
+        }
+        self.animation: Animation | None = self.animations[self.facing_direction]
 
         first_frame = self.animation.current_frame(0.0)
         if _looks_like_missing_asset(first_frame):
@@ -95,6 +100,7 @@ class Sheep(pygame.sprite.Sprite):
         self.state = "idle"
         self.direction = np.array([0.0, 0.0], dtype=float)
         self.state_timer = _random_timer()
+        self.animation_time = 0.0
 
     def _start_wander(self) -> None:
         self.state = "wander"
@@ -103,6 +109,7 @@ class Sheep(pygame.sprite.Sprite):
             [np.cos(angle), np.sin(angle)],
             dtype=float,
         )
+        self._update_facing_direction(self.direction)
         self.state_timer = _random_timer()
 
     def _move(self, tilemap: TileMap, dt: float) -> bool:
@@ -139,11 +146,20 @@ class Sheep(pygame.sprite.Sprite):
             round(float(self.pos[1])),
         )
 
+    def _update_facing_direction(self, movement: np.ndarray) -> None:
+        if abs(float(movement[0])) >= abs(float(movement[1])):
+            self.facing_direction = "right" if movement[0] > 0.0 else "left"
+        else:
+            self.facing_direction = "down" if movement[1] > 0.0 else "up"
+
     def _update_image(self) -> None:
-        if self.animation is None:
+        if not self.animations:
             return
 
-        frame = self.animation.current_frame(self.animation_time)
+        self.animation = self.animations[self.facing_direction]
+        moving = self.state == "wander"
+        elapsed = self.animation_time if moving else 0.0
+        frame = self.animation.current_frame(elapsed)
         if _looks_like_missing_asset(frame):
             return
 

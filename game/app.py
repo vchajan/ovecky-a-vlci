@@ -7,10 +7,11 @@ import pygame
 
 from game import settings
 from game.assets import AssetManager
+from game.audio import AudioSystem
 from game.session import GameSession, create_session
 from game.states import GameState
 from game.systems.collision import detect_collisions
-from game.systems.difficulty import DifficultyManager
+from game.systems.difficulty import DifficultyManager, normalize_difficulty
 from game.systems.rules import apply_collision_events, check_game_over
 from game.systems.score import ScoreSystem
 from game.ui.game_over import GameOverScreen
@@ -23,14 +24,24 @@ from game.world.tilemap import TileMap
 class PlayingState:
     """Actual gameplay state for Sheep Defender."""
 
-    def __init__(self, assets: AssetManager) -> None:
+    def __init__(
+        self,
+        assets: AssetManager,
+        difficulty: str = settings.DEFAULT_DIFFICULTY,
+    ) -> None:
         self.assets = assets
         self.rng = random.Random(42)
         self.tilemap = TileMap()
-        self.session: GameSession = create_session(assets, self.tilemap, self.rng)
+        self.session: GameSession = create_session(
+            assets,
+            self.tilemap,
+            self.rng,
+            difficulty,
+        )
         self.score_system = ScoreSystem()
         self.difficulty_manager = DifficultyManager()
         self.hud = HUD(assets)
+        self.audio = AudioSystem(assets)
 
     @property
     def final_score(self) -> int:
@@ -57,6 +68,7 @@ class PlayingState:
         )
         self.score_system.process_events(events, self.session)
         apply_collision_events(events, self.session, self.rng)
+        self._play_collision_audio(events)
 
         self.session.elapsed_time += dt
         self.score_system.tick(dt, self.session)
@@ -68,6 +80,7 @@ class PlayingState:
         )
         self.session.game_over = check_game_over(self.session)
         if self.session.game_over:
+            self.audio.play("audio/game_over")
             return GameState.GAME_OVER
 
         return None
@@ -77,11 +90,22 @@ class PlayingState:
         self.session.sheep_group.draw(surface)
 
         for wolf in self.session.wolf_group:
-            if wolf.is_active:
+            if wolf.is_visible:
                 surface.blit(wolf.image, wolf.rect)
 
         surface.blit(self.session.player.image, self.session.player.rect)
         self.hud.render(surface, self.session)
+
+    def _play_collision_audio(self, events) -> None:
+        played_repel = False
+        played_sheep_loss = False
+        for event in events:
+            if event.kind == "dog_repels_wolf" and not played_repel:
+                self.audio.play("audio/bark")
+                played_repel = True
+            elif event.kind == "wolf_eats_sheep" and not played_sheep_loss:
+                self.audio.play("audio/sheep_loss")
+                played_sheep_loss = True
 
 
 class Game:
@@ -94,10 +118,11 @@ class Game:
         self.clock = pygame.time.Clock()
         self.running = True
         self.assets = AssetManager()
+        self.selected_difficulty = settings.DEFAULT_DIFFICULTY
         self._states: dict[GameState, object] = {
             GameState.SPLASH: SplashScreen(self.assets),
-            GameState.MAIN_MENU: MenuScreen(self.assets),
-            GameState.PLAYING: PlayingState(self.assets),
+            GameState.MAIN_MENU: MenuScreen(self.assets, self.selected_difficulty),
+            GameState.PLAYING: PlayingState(self.assets, self.selected_difficulty),
             GameState.GAME_OVER: GameOverScreen(self.assets, final_score=0),
         }
         self.current_state: GameState = GameState.SPLASH
@@ -148,9 +173,23 @@ class Game:
     def _change_state(self, new_state: GameState) -> None:
         """Switch states and recreate stateful screens when needed."""
         if new_state == GameState.MAIN_MENU:
-            self._states[GameState.MAIN_MENU] = MenuScreen(self.assets)
+            self._states[GameState.MAIN_MENU] = MenuScreen(
+                self.assets,
+                self.selected_difficulty,
+            )
         elif new_state == GameState.PLAYING:
-            self._states[GameState.PLAYING] = PlayingState(self.assets)
+            if self.current_state == GameState.MAIN_MENU:
+                menu = self._states[GameState.MAIN_MENU]
+                difficulty = getattr(
+                    menu,
+                    "selected_difficulty",
+                    self.selected_difficulty,
+                )
+                self.selected_difficulty = normalize_difficulty(difficulty)
+            self._states[GameState.PLAYING] = PlayingState(
+                self.assets,
+                self.selected_difficulty,
+            )
         elif new_state == GameState.GAME_OVER:
             playing = self._states[GameState.PLAYING]
             score = getattr(playing, "final_score", 0)

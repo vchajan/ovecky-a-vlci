@@ -41,7 +41,11 @@ class Player(pygame.sprite.Sprite):
         self.speed = settings.PLAYER_SPEED
         self.direction = "down"
         self.animation_time = 0.0
-        self.animation: Animation | None = assets.animation("sprites/dog")
+        self.animations: dict[str, Animation] = {
+            direction: assets.animation(f"sprites/dog/walk/{direction}")
+            for direction in settings.SPRITE_DIRECTIONS
+        }
+        self.animation: Animation | None = self.animations[self.direction]
 
         first_frame = self.animation.current_frame(0.0)
         if _looks_like_missing_asset(first_frame):
@@ -68,15 +72,18 @@ class Player(pygame.sprite.Sprite):
             movement[0] += 1.0
 
         length = float(np.linalg.norm(movement))
-        if length > 0.0:
+        moving = length > 0.0
+        if moving:
             movement /= length
             self._update_direction(movement)
             offset = movement * self.speed * dt
             self._move_axis(0, float(offset[0]), tilemap)
             self._move_axis(1, float(offset[1]), tilemap)
             self.animation_time += dt
+        else:
+            self.animation_time = 0.0
 
-        self._update_image()
+        self._update_image(moving)
 
     def _move_axis(self, axis: int, amount: float, tilemap: TileMap) -> None:
         if amount == 0.0:
@@ -107,11 +114,13 @@ class Player(pygame.sprite.Sprite):
         else:
             self.direction = "down" if movement[1] > 0.0 else "up"
 
-    def _update_image(self) -> None:
-        if self.animation is None:
+    def _update_image(self, moving: bool) -> None:
+        if not self.animations:
             return
 
-        frame = self.animation.current_frame(self.animation_time)
+        self.animation = self.animations[self.direction]
+        elapsed = self.animation_time if moving else 0.0
+        frame = self.animation.current_frame(elapsed)
         if _looks_like_missing_asset(frame):
             return
 

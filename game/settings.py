@@ -33,10 +33,13 @@ COLOR_ACCENT = (220, 200, 80)
 COLOR_PLACEHOLDER = (255, 0, 255)  # zářivě růžová pro chybějící assety
 
 # ============================================================================
-# Počty entit (konstantní po celou hru)
+# Pocty entit a vlny
 # ============================================================================
 SHEEP_COUNT = 8
-WOLF_COUNT = 4
+INITIAL_WOLF_COUNT = 3
+WOLF_COUNT = INITIAL_WOLF_COUNT  # backwards-compatible alias
+WOLF_MAX_COUNT = 8
+WAVE_INTERVAL = 15.0
 
 # ============================================================================
 # Pohyb
@@ -44,19 +47,66 @@ WOLF_COUNT = 4
 PLAYER_SPEED = 220.0           # px/s
 SHEEP_SPEED = 60.0             # px/s
 SHEEP_IDLE_RANGE = (0.8, 2.4)  # (min, max) doba pauzy mezi pohyby v sekundách
-WOLF_BASE_SPEED = 140.0        # px/s, výchozí (před aplikací multiplikátoru)
+WOLF_BASE_SPEED = 60.0         # px/s, stejny velmi pomaly start pro vsechny obtiznosti
 
 # ============================================================================
-# Respawn vlka po srážce se psem
+# Obtiznost a postupne vlny
 # ============================================================================
-WOLF_RESPAWN_DELAY = 3.0       # sekund, po které je vlk neviditelný a neaktivní
+DEFAULT_DIFFICULTY = "medium"
+DIFFICULTIES = ("easy", "medium", "hard")
+
+WOLF_SPEED_INCREASE_EASY = 0.05
+WOLF_SPEED_INCREASE_MEDIUM = 0.08
+WOLF_SPEED_INCREASE_HARD = 0.12
+
+WOLF_SPEED_MAX_EASY = 1.8
+WOLF_SPEED_MAX_MEDIUM = 2.3
+WOLF_SPEED_MAX_HARD = 2.8
+
+DIFFICULTY_CONFIG = {
+    "easy": {
+        "speed_increase": WOLF_SPEED_INCREASE_EASY,
+        "max_multiplier": WOLF_SPEED_MAX_EASY,
+    },
+    "medium": {
+        "speed_increase": WOLF_SPEED_INCREASE_MEDIUM,
+        "max_multiplier": WOLF_SPEED_MAX_MEDIUM,
+    },
+    "hard": {
+        "speed_increase": WOLF_SPEED_INCREASE_HARD,
+        "max_multiplier": WOLF_SPEED_MAX_HARD,
+    },
+}
+
+INITIAL_SPEEDUPS_BEFORE_SPAWN = 1
 
 # ============================================================================
-# Postupné zvyšování obtížnosti (jen rychlost vlků, NIKDY počet)
+# Respawn a utek vlka po srazce se psem
 # ============================================================================
-DIFFICULTY_RAMP_INTERVAL = 15.0       # každých X sekund se zvedne rychlost
-DIFFICULTY_SPEED_INCREMENT = 0.10     # +10 % multiplikátoru na ramp
-DIFFICULTY_SPEED_MAX = 2.0            # cap multiplikátoru (max 2× rychlost)
+WOLF_FLEE_DURATION = 2.0
+WOLF_RESPAWN_DELAY = 3.0
+WOLF_FLEE_SPEED_MULTIPLIER = 1.35
+
+# Backwards-compatible names from the old speed-only ramp.
+DIFFICULTY_RAMP_INTERVAL = WAVE_INTERVAL
+DIFFICULTY_SPEED_INCREMENT = WOLF_SPEED_INCREASE_MEDIUM
+DIFFICULTY_SPEED_MAX = WOLF_SPEED_MAX_MEDIUM
+
+# ============================================================================
+# Spritesheet animace
+# ============================================================================
+SPRITE_FRAME_WIDTH = 64
+SPRITE_FRAME_HEIGHT = 64
+SPRITE_FRAME_COUNT = 4
+SPRITE_DIRECTIONS = ("down", "left", "right", "up")
+SPRITE_WALK_ROWS = {
+    "down": 0,
+    "left": 1,
+    "right": 2,
+    "up": 3,
+}
+SPRITE_WOLF_FLEE_ROW_OFFSET = 4
+SPRITE_FRAME_DURATION = 0.12
 
 # ============================================================================
 # Skóre

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import random
 
-from game import settings
 from game.session import GameSession
 from game.systems.collision import CollisionEvent
 
@@ -26,7 +25,4 @@ def apply_collision_events(events: list[CollisionEvent],
         elif event.kind == "dog_repels_wolf":
             if event.wolf is None or not event.wolf.is_active:
                 continue
-            event.wolf.trigger_respawn(
-                settings.WOLF_RESPAWN_DELAY,
-                session.tilemap.edge_spawn_position(rng),
-            )
+            event.wolf.start_fleeing(session.player.pos)
