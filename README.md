@@ -12,6 +12,16 @@ pip install -r requirements.txt
 python main.py
 ```
 
+## Windows EXE
+
+1. Dvakrat kliknete na `build_exe.bat`.
+2. Po dokonceni otevrete slozku `dist`.
+3. Dvakrat kliknete na `SheepDefender.exe`.
+
+Vysledny hrac nepotrebuje nainstalovany Python, terminal ani PyInstaller.
+Build vytvori jeden windowed soubor `dist/SheepDefender.exe`, ktery pri
+neocekavane chybe zapise `sheep_defender_error.log` vedle `.exe`.
+
 ## Ovládání
 
 - WASD nebo šipky: pohyb psa

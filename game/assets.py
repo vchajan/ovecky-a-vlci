@@ -2,13 +2,21 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 import pygame
 
 from game import settings
 from game.animation import Animation, slice_spritesheet
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+def resource_root() -> Path:
+    """Return the project root or PyInstaller extraction root."""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(getattr(sys, "_MEIPASS"))
+    return Path(__file__).resolve().parents[1]
+
+
+PROJECT_ROOT = resource_root()
 ASSET_ROOT = PROJECT_ROOT / "assets"
 
 IMAGE_FILES: dict[str, Path] = {
