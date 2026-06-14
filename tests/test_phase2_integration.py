@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import random
 import unittest
+import wave
 from pathlib import Path
 
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
@@ -14,7 +15,8 @@ import numpy as np
 from game import settings
 from game import assets as assets_module
 from game.app import Game, PlayingState
-from game.assets import AssetManager
+from game.assets import AssetManager, SilentSound
+from game.effects import SheepLossMark
 from game.entities.player import Player
 from game.entities.sheep import Sheep
 from game.entities.wolf import Wolf
@@ -28,6 +30,7 @@ from game.systems.difficulty import (
 from game.systems.rules import apply_collision_events, check_game_over
 from game.systems.score import ScoreSystem
 from game.world.tilemap import TileMap
+from tools import generate_sounds
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -55,6 +58,14 @@ class OpenTileMap:
 class RightFenceTileMap(OpenTileMap):
     def is_blocked_rect(self, rect: pygame.Rect) -> bool:
         return rect.right > 120
+
+
+class SpyAudio:
+    def __init__(self) -> None:
+        self.played: list[str] = []
+
+    def play(self, key: str) -> None:
+        self.played.append(key)
 
 
 def setUpModule() -> None:
@@ -119,6 +130,92 @@ class Phase2IntegrationTests(unittest.TestCase):
         sheep.state_timer = 0.0
         sheep.update(0.1, self.open_map)
         self.assertEqual(sheep.state, "idle")
+
+    def test_sheep_outside_herd_radius_ignores_dog(self) -> None:
+        player = Player((100.0, 100.0), self.assets)
+        sheep = Sheep((400.0, 100.0), self.assets)
+        sheep.state_timer = 10.0
+
+        sheep.update(0.25, self.open_map, player, pygame.sprite.Group(sheep))
+
+        self.assertEqual(sheep.state, "idle")
+        self.assertAlmostEqual(float(sheep.pos[0]), 400.0)
+        self.assertAlmostEqual(float(sheep.pos[1]), 100.0)
+
+    def test_sheep_inside_herd_radius_moves_away_from_dog(self) -> None:
+        player = Player((100.0, 100.0), self.assets)
+        sheep = Sheep((180.0, 100.0), self.assets)
+
+        sheep.update(0.25, self.open_map, player, pygame.sprite.Group(sheep))
+
+        self.assertEqual(sheep.state, "herded")
+        self.assertGreater(float(sheep.pos[0]), 180.0)
+        self.assertGreater(float(sheep.direction[0]), 0.0)
+        self.assertAlmostEqual(float(np.linalg.norm(sheep.direction)), 1.0)
+
+    def test_strong_herd_radius_moves_sheep_faster(self) -> None:
+        player = Player((100.0, 100.0), self.assets)
+        normal = Sheep((210.0, 100.0), self.assets)
+        strong = Sheep((150.0, 100.0), self.assets)
+
+        normal.update(0.2, self.open_map, player, pygame.sprite.Group(normal))
+        strong.update(0.2, self.open_map, player, pygame.sprite.Group(strong))
+
+        normal_delta = float(normal.pos[0] - 210.0)
+        strong_delta = float(strong.pos[0] - 150.0)
+        self.assertGreater(strong_delta, normal_delta)
+        self.assertEqual(strong.herd_force, settings.DOG_HERD_STRONG_FORCE)
+
+    def test_herded_state_returns_to_regular_behavior(self) -> None:
+        sheep = Sheep((200.0, 200.0), self.assets)
+        sheep.state = "herded"
+        sheep.direction = np.array([1.0, 0.0], dtype=float)
+        sheep.herd_remaining = 0.01
+
+        sheep.update(0.2, self.open_map, None, pygame.sprite.Group(sheep))
+
+        self.assertEqual(sheep.state, "wander")
+
+    def test_herded_sheep_respects_fence(self) -> None:
+        player = Player((20.0, 100.0), self.assets)
+        sheep = Sheep((80.0, 100.0), self.assets)
+
+        sheep.update(1.0, RightFenceTileMap(), player, pygame.sprite.Group(sheep))
+
+        self.assertLessEqual(round(float(sheep.pos[0])), 80)
+
+    def test_flock_cohesion_pulls_wandering_sheep_toward_neighbors(self) -> None:
+        sheep = Sheep((200.0, 200.0), self.assets)
+        neighbor = Sheep((300.0, 200.0), self.assets)
+        sheep.state = "wander"
+        sheep.state_timer = 10.0
+        sheep.direction = np.array([0.0, 1.0], dtype=float)
+
+        sheep.update(0.1, self.open_map, None, pygame.sprite.Group(sheep, neighbor))
+
+        self.assertGreater(float(sheep.direction[0]), 0.0)
+
+    def test_flock_separation_pushes_sheep_apart(self) -> None:
+        sheep = Sheep((200.0, 200.0), self.assets)
+        neighbor = Sheep((210.0, 200.0), self.assets)
+        sheep.state = "wander"
+        sheep.state_timer = 10.0
+        sheep.direction = np.array([0.0, 1.0], dtype=float)
+
+        sheep.update(0.1, self.open_map, None, pygame.sprite.Group(sheep, neighbor))
+
+        self.assertLess(float(sheep.direction[0]), 0.0)
+
+    def test_sheep_update_handles_single_or_empty_neighbor_group(self) -> None:
+        sheep = Sheep((200.0, 200.0), self.assets)
+        sheep.state = "wander"
+        sheep.state_timer = 10.0
+        sheep.direction = np.array([1.0, 0.0], dtype=float)
+
+        sheep.update(0.1, self.open_map, None, pygame.sprite.Group(sheep))
+        sheep.update(0.1, self.open_map, None, pygame.sprite.Group())
+
+        self.assertTrue(sheep.alive)
 
     def test_wolf_finds_nearest_sheep(self) -> None:
         near = Sheep((100.0, 0.0), self.assets)
@@ -228,11 +325,11 @@ class Phase2IntegrationTests(unittest.TestCase):
         tilemap = TileMap()
         session = create_session(self.assets, tilemap, random.Random(7))
 
-        self.assertEqual(len(session.sheep_group), settings.SHEEP_COUNT)
+        self.assertEqual(len(session.sheep_group), settings.INITIAL_SHEEP_COUNT)
         self.assertEqual(len(session.wolf_group), settings.INITIAL_WOLF_COUNT)
         self.assertEqual(session.wave, 1)
         self.assertEqual(session.wolf_speed_multiplier, 1.0)
-        self.assertEqual(session.sheep_alive, settings.SHEEP_COUNT)
+        self.assertEqual(session.sheep_alive, settings.INITIAL_SHEEP_COUNT)
         self.assertFalse(tilemap.is_blocked_rect(session.player.rect))
 
         all_sprites = [
@@ -252,6 +349,37 @@ class Phase2IntegrationTests(unittest.TestCase):
 
         self.assertEqual(state.update(1 / 60), GameState.GAME_OVER)
         self.assertTrue(check_game_over(state.session))
+
+    def test_game_over_uses_minimum_safe_sheep_count(self) -> None:
+        session = self.make_session()
+
+        session.sheep_alive = settings.INITIAL_SHEEP_COUNT
+        self.assertFalse(check_game_over(session))
+
+        session.sheep_alive = settings.MINIMUM_SHEEP_TO_CONTINUE
+        self.assertFalse(check_game_over(session))
+
+        session.sheep_alive = settings.MINIMUM_SHEEP_TO_CONTINUE - 1
+        self.assertTrue(check_game_over(session))
+
+        session.sheep_alive = 0
+        self.assertTrue(check_game_over(session))
+
+    def test_restart_restores_initial_sheep_count(self) -> None:
+        game = Game()
+
+        game._change_state(GameState.PLAYING)
+        for sheep in list(game.state.session.sheep_group)[:6]:
+            sheep.kill_sheep()
+        game.state.session.sheep_alive = 2
+        self.assertTrue(check_game_over(game.state.session))
+
+        game._change_state(GameState.GAME_OVER)
+        game._change_state(GameState.PLAYING)
+
+        self.assertEqual(len(game.state.session.sheep_group), settings.INITIAL_SHEEP_COUNT)
+        self.assertEqual(game.state.session.sheep_alive, settings.INITIAL_SHEEP_COUNT)
+        game.running = False
 
     def test_asset_manager_fallbacks_and_animations(self) -> None:
         fallback = self.assets.image("missing/asset")
@@ -312,6 +440,55 @@ class Phase2IntegrationTests(unittest.TestCase):
         self.assertEqual(session.sheep_alive, 0)
         self.assertFalse(sheep.alive)
         self.assertFalse(wolf.is_active)
+        self.assertEqual(len(session.sheep_loss_marks or []), 1)
+        self.assertEqual((session.sheep_loss_marks or [])[0].position, (100.0, 100.0))
+
+    def test_sheep_loss_mark_expires_after_duration(self) -> None:
+        state = PlayingState(self.assets)
+        state.session.sheep_loss_marks = [SheepLossMark((120.0, 140.0))]
+
+        state._update_loss_marks(settings.BLOOD_STAIN_DURATION + 0.1)
+
+        self.assertEqual(state.session.sheep_loss_marks, [])
+
+    def test_sheep_loss_mark_count_is_capped(self) -> None:
+        sheep = [
+            Sheep((100.0 + index * 5.0, 100.0), self.assets)
+            for index in range(settings.MAX_BLOOD_STAINS + 5)
+        ]
+        wolf = Wolf((100.0, 100.0), 10.0, self.assets)
+        session = self.make_session(
+            sheep_group=pygame.sprite.Group(*sheep),
+            wolf_group=pygame.sprite.Group(wolf),
+        )
+        session.sheep_alive = len(sheep)
+
+        apply_collision_events(
+            [
+                CollisionEvent("wolf_eats_sheep", sheep=item, wolf=wolf)
+                for item in sheep
+            ],
+            session,
+            random.Random(4),
+        )
+
+        self.assertLessEqual(len(session.sheep_loss_marks or []), settings.MAX_BLOOD_STAINS)
+
+    def test_sheep_loss_marks_do_not_affect_collisions(self) -> None:
+        player = Player((500.0, 500.0), self.assets)
+        sheep = Sheep((100.0, 100.0), self.assets)
+        wolf = Wolf((100.0, 100.0), 10.0, self.assets)
+        session = self.make_session(
+            player=player,
+            sheep_group=pygame.sprite.Group(sheep),
+            wolf_group=pygame.sprite.Group(wolf),
+        )
+        session.sheep_loss_marks = [SheepLossMark((100.0, 100.0))]
+
+        events = detect_collisions(player, session.sheep_group, session.wolf_group)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].kind, "wolf_eats_sheep")
 
     def test_difficulties_share_initial_speed_wolves_and_wave(self) -> None:
         effective_speeds: list[float] = []
@@ -529,6 +706,108 @@ class Phase2IntegrationTests(unittest.TestCase):
         second = self.assets.animation("sprites/wolf/flee/right")
 
         self.assertIs(first, second)
+
+    def test_generate_sounds_creates_loadable_wav_files(self) -> None:
+        generate_sounds.main()
+        filenames = (
+            "bark.wav",
+            "sheep_bleat.wav",
+            "sheep_panic.wav",
+            "sheep_loss.wav",
+            "wolf_growl.wav",
+            "wolf_howl.wav",
+            "wolf_flee.wav",
+        )
+        for filename in filenames:
+            path = ROOT_DIR / "assets" / "audio" / filename
+            self.assertTrue(path.is_file(), filename)
+            self.assertGreater(path.stat().st_size, 44)
+            with wave.open(str(path), "rb") as wav:
+                self.assertEqual(wav.getnchannels(), 1)
+                self.assertEqual(wav.getsampwidth(), 2)
+                self.assertGreater(wav.getnframes(), 0)
+
+    def test_pygame_can_load_generated_sounds_when_mixer_works(self) -> None:
+        try:
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+        except pygame.error:
+            self.skipTest("pygame mixer is unavailable")
+
+        sound = pygame.mixer.Sound(
+            str(ROOT_DIR / "assets" / "audio" / "sheep_bleat.wav"),
+        )
+
+        self.assertGreater(sound.get_length(), 0.0)
+
+    def test_asset_manager_uses_silent_sound_without_mixer(self) -> None:
+        was_initialized = pygame.mixer.get_init() is not None
+        pygame.mixer.quit()
+        try:
+            manager = AssetManager()
+            sound = manager.sound("audio/sheep_bleat")
+        finally:
+            if was_initialized:
+                try:
+                    pygame.mixer.init()
+                except pygame.error:
+                    pass
+
+        self.assertIsInstance(sound, SilentSound)
+
+    def test_collision_audio_plays_once_per_event_kind(self) -> None:
+        state = PlayingState(self.assets)
+        state.audio = SpyAudio()
+        sheep = Sheep((100.0, 100.0), self.assets)
+        wolf = Wolf((100.0, 100.0), 10.0, self.assets)
+
+        state._play_collision_audio(
+            [
+                CollisionEvent("dog_repels_wolf", wolf=wolf),
+                CollisionEvent("dog_repels_wolf", wolf=wolf),
+                CollisionEvent("wolf_eats_sheep", sheep=sheep, wolf=wolf),
+                CollisionEvent("wolf_eats_sheep", sheep=sheep, wolf=wolf),
+            ],
+        )
+
+        self.assertEqual(state.audio.played.count("audio/bark"), 1)
+        self.assertEqual(state.audio.played.count("audio/wolf_flee"), 1)
+        self.assertEqual(state.audio.played.count("audio/sheep_loss"), 1)
+
+    def test_wave_howl_plays_once_when_wave_advances(self) -> None:
+        state = PlayingState(self.assets)
+        state.audio = SpyAudio()
+        state._sheep_bleat_timer = 999.0
+        state._sheep_panic_cooldown = 999.0
+        state.session.wolf_group.empty()
+
+        state.update(settings.WAVE_INTERVAL)
+
+        self.assertEqual(state.audio.played.count("audio/wolf_howl"), 1)
+
+    def test_proximity_audio_cooldowns_prevent_frame_spam(self) -> None:
+        state = PlayingState(self.assets)
+        state.audio = SpyAudio()
+        sheep = Sheep((100.0, 100.0), self.assets)
+        wolf = Wolf((120.0, 100.0), 10.0, self.assets)
+        state.session.sheep_group = pygame.sprite.Group(sheep)
+        state.session.wolf_group = pygame.sprite.Group(wolf)
+
+        state._update_proximity_audio(0.0)
+        state._update_proximity_audio(0.1)
+
+        self.assertEqual(state.audio.played.count("audio/wolf_growl"), 1)
+        self.assertEqual(state.audio.played.count("audio/sheep_panic"), 1)
+
+    def test_random_sheep_bleat_uses_shared_timer(self) -> None:
+        state = PlayingState(self.assets)
+        state.audio = SpyAudio()
+        state._sheep_bleat_timer = 0.0
+
+        state._update_bleat_audio(0.1)
+        state._update_bleat_audio(0.1)
+
+        self.assertEqual(state.audio.played.count("audio/sheep_bleat"), 1)
 
     def test_missing_spritesheet_uses_animation_fallback(self) -> None:
         old_path = assets_module.IMAGE_FILES["sprites/dog_sheet"]

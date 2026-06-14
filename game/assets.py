@@ -35,7 +35,12 @@ IMAGE_FILES: dict[str, Path] = {
 
 SOUND_FILES: dict[str, Path] = {
     "audio/bark": ASSET_ROOT / "audio" / "bark.wav",
+    "audio/sheep_bleat": ASSET_ROOT / "audio" / "sheep_bleat.wav",
+    "audio/sheep_panic": ASSET_ROOT / "audio" / "sheep_panic.wav",
     "audio/sheep_loss": ASSET_ROOT / "audio" / "sheep_loss.wav",
+    "audio/wolf_growl": ASSET_ROOT / "audio" / "wolf_growl.wav",
+    "audio/wolf_howl": ASSET_ROOT / "audio" / "wolf_howl.wav",
+    "audio/wolf_flee": ASSET_ROOT / "audio" / "wolf_flee.wav",
     "audio/wolf_stun": ASSET_ROOT / "audio" / "wolf_stun.wav",
     "audio/game_over": ASSET_ROOT / "audio" / "game_over.wav",
 }

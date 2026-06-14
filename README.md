@@ -26,6 +26,7 @@ neocekavane chybe zapise `sheep_defender_error.log` vedle `.exe`.
 
 - WASD nebo šipky: pohyb psa
 - Esc: konec hry / pauza
+- F3: zobrazit/skryt pasteveckou zonu psa pro debug
 
 ## Obtiznosti a vlny
 
@@ -37,6 +38,7 @@ jinou obtiznost.
 Vsechny obtiznosti zacinaji stejne:
 
 - Wave 1
+- 8 ovci
 - 3 vlci
 - rychlostni multiplikator 1.00
 - efektivni rychlost vlka `WOLF_BASE_SPEED * 1.0`, tedy 60 px/s
@@ -82,6 +84,29 @@ python tools/generate_spritesheets.py
 Po odrazeni psem vlk dve sekundy utika pomoci flee animace, nemuze zrat ovce
 ani znovu pridavat skore, potom zmizi, respawnuje se na validni edge pozici a
 vrati se do stavu chasing.
+
+## Pastevectvi a stado
+
+Pes ma kolem sebe neviditelnou pasteveckou zonu. Kdyz se ovce dostane blizko,
+zacne plynule utikat smerem od psa, kratce si tento smer pamatuje a jde rychleji
+nez pri beznem nahodnem pohybu. Velmi blizka ovce reaguje silneji.
+
+Ovce maji jednoduchou stadovou tendenci: pri pohybu mirne miri ke stredu
+blizkych ovci, ale zaroven si drzi odstup od prilis blizkych sousedu. Pes tak
+muze stado postupne tlacit, obchazet a odhanet od vlku bez teleportu nebo
+primeho fyzickeho tlaceni.
+
+Hra zacina s 8 ovcemi. Bezpecne minimum jsou 3 zive ovce, Game Over nastane az
+pri poklesu pod tuto hranici. Po ztracene ovci zustane stylizovana cervena stopa,
+ktera postupne vybledne.
+
+Zvuky ovci a vlku jsou generovane lokalnim nastrojem:
+
+```bash
+python tools/generate_sounds.py
+```
+
+Build EXE spousti generator spritesheetu i generator zvuku automaticky.
 
 ## Struktura projektu
 

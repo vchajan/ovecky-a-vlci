@@ -35,7 +35,9 @@ COLOR_PLACEHOLDER = (255, 0, 255)  # zářivě růžová pro chybějící assety
 # ============================================================================
 # Pocty entit a vlny
 # ============================================================================
-SHEEP_COUNT = 8
+INITIAL_SHEEP_COUNT = 8
+SHEEP_COUNT = INITIAL_SHEEP_COUNT  # backwards-compatible alias
+MINIMUM_SHEEP_TO_CONTINUE = 3
 INITIAL_WOLF_COUNT = 3
 WOLF_COUNT = INITIAL_WOLF_COUNT  # backwards-compatible alias
 WOLF_MAX_COUNT = 8
@@ -48,6 +50,25 @@ PLAYER_SPEED = 220.0           # px/s
 SHEEP_SPEED = 60.0             # px/s
 SHEEP_IDLE_RANGE = (0.8, 2.4)  # (min, max) doba pauzy mezi pohyby v sekundách
 WOLF_BASE_SPEED = 60.0         # px/s, stejny velmi pomaly start pro vsechny obtiznosti
+
+# ============================================================================
+# Pastevecka mechanika psa a stado
+# ============================================================================
+DOG_HERD_RADIUS = 145.0
+DOG_HERD_STRONG_RADIUS = 75.0
+DOG_HERD_FORCE = 1.0
+DOG_HERD_STRONG_FORCE = 1.5
+SHEEP_HERD_SPEED_MULTIPLIER = 1.25
+SHEEP_HERD_MEMORY_TIME = 0.8
+
+SHEEP_NEIGHBOR_RADIUS = 170.0
+SHEEP_SEPARATION_RADIUS = 38.0
+SHEEP_COHESION_WEIGHT = 0.18
+SHEEP_SEPARATION_WEIGHT = 0.35
+SHEEP_HERDING_WEIGHT = 1.0
+
+BLOOD_STAIN_DURATION = 25.0
+MAX_BLOOD_STAINS = 20
 
 # ============================================================================
 # Obtiznost a postupne vlny
@@ -86,6 +107,12 @@ INITIAL_SPEEDUPS_BEFORE_SPAWN = 1
 WOLF_FLEE_DURATION = 2.0
 WOLF_RESPAWN_DELAY = 3.0
 WOLF_FLEE_SPEED_MULTIPLIER = 1.35
+WOLF_GROWL_DISTANCE = 180.0
+WOLF_GROWL_COOLDOWN = 4.0
+
+SHEEP_BLEAT_INTERVAL_RANGE = (6.0, 14.0)
+SHEEP_PANIC_DISTANCE = 150.0
+SHEEP_PANIC_SOUND_COOLDOWN = 3.0
 
 # Backwards-compatible names from the old speed-only ramp.
 DIFFICULTY_RAMP_INTERVAL = WAVE_INTERVAL

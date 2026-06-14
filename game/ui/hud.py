@@ -48,15 +48,18 @@ class HUD:
             f"Speed: {session.wolf_speed_multiplier:.2f}x",
             f"Score: {session.score}",
             f"Time: {minutes:02d}:{seconds:02d}",
-            f"Sheep: {session.sheep_alive}",
+            f"Sheep: {session.sheep_alive} / {settings.INITIAL_SHEEP_COUNT}",
+            f"Minimum: {settings.MINIMUM_SHEEP_TO_CONTINUE}",
             f"Speed-ups: {session.speedups_completed} / {session.speedups_required}",
         )
 
         y = self._MARGIN
         for index, line in enumerate(lines):
             color = settings.COLOR_ACCENT if index == 4 else settings.COLOR_TEXT
-            if index in (3, 7):
+            if index in (3, 8):
                 color = settings.COLOR_TEXT_DIM
+            if index in (6, 7) and session.sheep_alive <= settings.MINIMUM_SHEEP_TO_CONTINUE:
+                color = (235, 95, 75)
             text = self._info_font.render(line, True, color)
             surface.blit(text, (self._MARGIN, y))
             y += text.get_height() + 2
@@ -69,6 +72,8 @@ class HUD:
 
         if session.wave_notice_remaining > 0.0 and session.wave_action:
             self._render_wave_notice(surface, session)
+        if session.sheep_warning_remaining > 0.0:
+            self._render_sheep_warning(surface)
 
     def _render_wave_notice(
         self,
@@ -92,3 +97,14 @@ class HUD:
         subtitle_rect = subtitle.get_rect(center=(center_x, title_rect.bottom + 18))
         surface.blit(title, title_rect)
         surface.blit(subtitle, subtitle_rect)
+
+    def _render_sheep_warning(self, surface: pygame.Surface) -> None:
+        warning = self._info_font.render(
+            "WARNING: LAST SAFE SHEEP",
+            True,
+            (245, 120, 70),
+        )
+        rect = warning.get_rect(
+            center=(surface.get_width() // 2, int(surface.get_height() * 0.34)),
+        )
+        surface.blit(warning, rect)

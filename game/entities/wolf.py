@@ -68,6 +68,7 @@ class Wolf(pygame.sprite.Sprite):
         self.flee_direction = np.array([0.0, 0.0], dtype=float)
         self.flee_remaining = 0.0
         self.respawn_remaining = 0.0
+        self.growl_cooldown_remaining = 0.0
         self.animation_time = 0.0
 
         self.animations: dict[str, dict[str, Animation]] = {

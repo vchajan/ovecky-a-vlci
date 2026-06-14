@@ -11,6 +11,7 @@ from game import settings
 
 if TYPE_CHECKING:
     from game.assets import AssetManager
+    from game.effects import SheepLossMark
     from game.entities.player import Player
     from game.world.tilemap import TileMap
 
@@ -35,6 +36,8 @@ class GameSession:
     speedups_completed: int = 0
     wave_action: str | None = None
     wave_notice_remaining: float = 0.0
+    sheep_warning_remaining: float = 0.0
+    sheep_loss_marks: list["SheepLossMark"] | None = None
     wolves_repelled: int = 0
     sheep_alive: int = 0
     game_over: bool = False
@@ -71,7 +74,7 @@ def create_session(assets: "AssetManager",
             occupied,
             rng,
         )
-        for _ in range(settings.SHEEP_COUNT)
+        for _ in range(settings.INITIAL_SHEEP_COUNT)
     ]
 
     wolves = [
@@ -93,6 +96,7 @@ def create_session(assets: "AssetManager",
         assets=assets,
         rng=rng,
         difficulty=selected_difficulty,
+        sheep_loss_marks=[],
         sheep_alive=sum(1 for item in sheep if item.alive),
     )
 
